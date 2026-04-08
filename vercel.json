@@ -1,141 +1,141 @@
-{
+﻿{
   "version": 2,
   "builds": [
     {
       "src": "index.php",
-      "use": "vercel-community/php@0.8.0"
+      "use": "vercel-php@0.8.0"
     },
     {
       "src": "login.php",
-      "use": "vercel-community/php@0.8.0"
+      "use": "vercel-php@0.8.0"
     },
     {
       "src": "logout.php",
-      "use": "vercel-community/php@0.8.0"
+      "use": "vercel-php@0.8.0"
     },
     {
       "src": "dashboard.php",
-      "use": "vercel-community/php@0.8.0"
+      "use": "vercel-php@0.8.0"
     },
     {
       "src": "pos.php",
-      "use": "vercel-community/php@0.8.0"
+      "use": "vercel-php@0.8.0"
     },
     {
       "src": "caixa.php",
-      "use": "vercel-community/php@0.8.0"
+      "use": "vercel-php@0.8.0"
     },
     {
       "src": "sales.php",
-      "use": "vercel-community/php@0.8.0"
+      "use": "vercel-php@0.8.0"
     },
     {
       "src": "products.php",
-      "use": "vercel-community/php@0.8.0"
+      "use": "vercel-php@0.8.0"
     },
     {
       "src": "stock.php",
-      "use": "vercel-community/php@0.8.0"
+      "use": "vercel-php@0.8.0"
     },
     {
       "src": "categories.php",
-      "use": "vercel-community/php@0.8.0"
+      "use": "vercel-php@0.8.0"
     },
     {
       "src": "customers.php",
-      "use": "vercel-community/php@0.8.0"
+      "use": "vercel-php@0.8.0"
     },
     {
       "src": "accounts.php",
-      "use": "vercel-community/php@0.8.0"
+      "use": "vercel-php@0.8.0"
     },
     {
       "src": "finance.php",
-      "use": "vercel-community/php@0.8.0"
+      "use": "vercel-php@0.8.0"
     },
     {
       "src": "despesas.php",
-      "use": "vercel-community/php@0.8.0"
+      "use": "vercel-php@0.8.0"
     },
     {
       "src": "reports.php",
-      "use": "vercel-community/php@0.8.0"
+      "use": "vercel-php@0.8.0"
     },
     {
       "src": "users.php",
-      "use": "vercel-community/php@0.8.0"
+      "use": "vercel-php@0.8.0"
     },
     {
       "src": "pricing.php",
-      "use": "vercel-community/php@0.8.0"
+      "use": "vercel-php@0.8.0"
     },
     {
       "src": "simulacao.php",
-      "use": "vercel-community/php@0.8.0"
+      "use": "vercel-php@0.8.0"
     },
     {
       "src": "print_receipt.php",
-      "use": "vercel-community/php@0.8.0"
+      "use": "vercel-php@0.8.0"
     },
     {
       "src": "process_sale.php",
-      "use": "vercel-community/php@0.8.0"
+      "use": "vercel-php@0.8.0"
     },
     {
       "src": "process_stock_entry.php",
-      "use": "vercel-community/php@0.8.0"
+      "use": "vercel-php@0.8.0"
     },
     {
       "src": "cancel_sale.php",
-      "use": "vercel-community/php@0.8.0"
+      "use": "vercel-php@0.8.0"
     },
     {
       "src": "ajax_search_product.php",
-      "use": "vercel-community/php@0.8.0"
+      "use": "vercel-php@0.8.0"
     },
     {
       "src": "ajax_get_product.php",
-      "use": "vercel-community/php@0.8.0"
+      "use": "vercel-php@0.8.0"
     },
     {
       "src": "ajax_get_sale_items.php",
-      "use": "vercel-community/php@0.8.0"
+      "use": "vercel-php@0.8.0"
     },
     {
       "src": "ajax_get_stock_entry.php",
-      "use": "vercel-community/php@0.8.0"
+      "use": "vercel-php@0.8.0"
     },
     {
       "src": "generate_finance_pdf.php",
-      "use": "vercel-community/php@0.8.0"
+      "use": "vercel-php@0.8.0"
     },
     {
       "src": "generate_pdf_report.php",
-      "use": "vercel-community/php@0.8.0"
+      "use": "vercel-php@0.8.0"
     },
     {
       "src": "get_notifications.php",
-      "use": "vercel-community/php@0.8.0"
+      "use": "vercel-php@0.8.0"
     },
     {
       "src": "mark_notification_read.php",
-      "use": "vercel-community/php@0.8.0"
+      "use": "vercel-php@0.8.0"
     },
     {
       "src": "mark_all_notifications_read.php",
-      "use": "vercel-community/php@0.8.0"
+      "use": "vercel-php@0.8.0"
     },
     {
       "src": "update_overdue_accounts.php",
-      "use": "vercel-community/php@0.8.0"
+      "use": "vercel-php@0.8.0"
     },
     {
       "src": "delete_account.php",
-      "use": "vercel-community/php@0.8.0"
+      "use": "vercel-php@0.8.0"
     },
     {
       "src": "website/index.php",
-      "use": "vercel-community/php@0.8.0"
+      "use": "vercel-php@0.8.0"
     }
   ],
   "routes": [
