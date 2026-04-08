@@ -1,0 +1,17 @@
+# Pastas de backup/duplicatas
+donabela/
+donabelaOLD/
+donabelaOLD2/
+
+# Dumps SQL antigos
+*.sql
+!database.sql
+
+# Arquivos temporários
+*.tmp
+*.log
+*.bak
+
+# OS files
+Thumbs.db
+.DS_Store
