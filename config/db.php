@@ -28,6 +28,12 @@ try {
     $pdo->exec("set names utf8mb4");
     // Set MySQL timezone to Brazil
     $pdo->exec("SET time_zone = '-03:00'");
+
+    // Configurar sessão via banco de dados (necessário para Vercel/serverless)
+    if (session_status() === PHP_SESSION_NONE) {
+        require_once __DIR__ . '/sessions.php';
+        init_db_session($pdo);
+    }
 } catch (PDOException $e) {
     die("Erro de conexão com o banco de dados: " . $e->getMessage());
 }

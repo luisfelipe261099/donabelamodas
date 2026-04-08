@@ -1,6 +1,6 @@
 <?php
-session_start();
 require_once 'config/db.php';
+session_start();
 
 // Get filter parameters
 $start_date = isset($_GET['start_date']) ? $_GET['start_date'] : date('Y-m-01');
