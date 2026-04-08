@@ -184,7 +184,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 </form>
 
                 <div class="mt-4 text-center">
-                    <a href="website/index.php" class="back-link">
+                    <a href="website/index.html" class="back-link">
                         <i class="fas fa-arrow-left me-1"></i> Voltar ao site
                     </a>
                 </div>
