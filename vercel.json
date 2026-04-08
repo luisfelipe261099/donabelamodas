@@ -33,7 +33,9 @@
     { "src": "mark_notification_read.php", "use": "vercel-php@0.8.0" },
     { "src": "mark_all_notifications_read.php", "use": "vercel-php@0.8.0" },
     { "src": "update_overdue_accounts.php", "use": "vercel-php@0.8.0" },
-    { "src": "delete_account.php", "use": "vercel-php@0.8.0" }
+    { "src": "delete_account.php", "use": "vercel-php@0.8.0" },
+    { "src": "website/**", "use": "@vercel/static" },
+    { "src": "assets/**", "use": "@vercel/static" }
   ],
   "routes": [
     { "src": "/assets/(.*)", "dest": "/assets/$1" },
