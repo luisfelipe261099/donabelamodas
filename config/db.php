@@ -2,12 +2,12 @@
 // Set Brazil timezone
 date_default_timezone_set('America/Sao_Paulo');
 
-// Configurações TiDB Cloud (donabela)
-$host = 'gateway01.us-east-1.prod.aws.tidbcloud.com';
-$port = 4000;
-$db_name = 'donabela';
-$username = '2TTR5UU5w3Zdwys.root';
-$password = 'LbPeOxZuD5HSMvkI';
+// Configurações via variáveis de ambiente (Vercel) com fallback local
+$host = getenv('DB_HOST') ?: 'gateway01.us-east-1.prod.aws.tidbcloud.com';
+$port = getenv('DB_PORT') ?: 4000;
+$db_name = getenv('DB_NAME') ?: 'donabela';
+$username = getenv('DB_USER') ?: '2TTR5UU5w3Zdwys.root';
+$password = getenv('DB_PASS') ?: 'LbPeOxZuD5HSMvkI';
 
 try {
     $dsn = "mysql:host=$host;port=$port;dbname=$db_name";
