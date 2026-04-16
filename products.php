@@ -64,8 +64,9 @@ $search = isset($_GET['search']) ? $_GET['search'] : '';
 $where = "";
 $params = [];
 if ($search) {
-    $where = "WHERE p.name LIKE ? OR p.code LIKE ?";
-    $params = ["%$search%", "%$search%"];
+    $search_lower = mb_strtolower($search, 'UTF-8');
+    $where = "WHERE LOWER(p.name) LIKE ? OR LOWER(p.code) LIKE ?";
+    $params = ["%$search_lower%", "%$search_lower%"];
 }
 
 // Count total

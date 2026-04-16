@@ -2,8 +2,8 @@
 require_once 'config/db.php';
 
 if (isset($_GET['term'])) {
-    $term = "%" . $_GET['term'] . "%";
-    $stmt = $pdo->prepare("SELECT * FROM products WHERE name LIKE ? OR code LIKE ? LIMIT 10");
+    $term = "%" . mb_strtolower($_GET['term'], 'UTF-8') . "%";
+    $stmt = $pdo->prepare("SELECT * FROM products WHERE LOWER(name) LIKE ? OR LOWER(code) LIKE ? LIMIT 10");
     $stmt->execute([$term, $term]);
     $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
