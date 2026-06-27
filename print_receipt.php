@@ -51,6 +51,14 @@ $items = $stmt_items->fetchAll(PDO::FETCH_ASSOC);
                 margin: 0;
                 padding: 5px;
             }
+
+            /* Impressao em negrito e preto forte para sair mais escuro */
+            * {
+                font-weight: bold !important;
+                color: #000 !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
         }
 
         body {

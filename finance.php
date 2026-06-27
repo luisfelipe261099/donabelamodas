@@ -81,6 +81,13 @@ include 'includes/header.php';
     body { background: white !important; }
     .card { border: 1px solid #ddd !important; background: white !important; color: black !important; }
     .text-white { color: black !important; }
+    /* Impressao em negrito e preto forte para sair mais escuro */
+    * {
+        font-weight: bold !important;
+        color: #000 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
 }
 
 /* Custom scrollbar for sales table */

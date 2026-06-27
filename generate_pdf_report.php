@@ -52,6 +52,15 @@ $filtered_sales = $stmt->fetchAll(PDO::FETCH_ASSOC);
             color: #000;
             background: #fff;
         }
+        /* Impressao em negrito e preto forte para sair mais escuro */
+        @media print {
+            * {
+                font-weight: bold !important;
+                color: #000 !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+        }
         .header {
             text-align: center;
             margin-bottom: 30px;

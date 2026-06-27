@@ -84,6 +84,17 @@ header('Content-Type: text/html; charset=utf-8');
         .text-center { text-align: center; }
         .total-row { background-color: #4CAF50 !important; color: white; font-weight: bold; }
         .footer { margin-top: 30px; text-align: center; font-size: 12px; color: #666; }
+        /* Impressao em negrito e preto forte para sair mais escuro */
+        @media print {
+            * {
+                font-weight: bold !important;
+                color: #000 !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            /* Mantem legibilidade do texto sobre fundos coloridos */
+            th, .total-row { color: #fff !important; }
+        }
     </style>
 </head>
 <body>
