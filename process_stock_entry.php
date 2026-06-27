@@ -63,26 +63,67 @@ try {
 
         // Check if it's a new product or existing
         if (isset($item['is_new_product']) && $item['is_new_product']) {
-            // Create new product
-            $stmt = $pdo->prepare("
-                INSERT INTO products (code, name, category_id, size, color, gender, cost_price, sell_price, stock, image, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
-            ");
+            $code = trim($item['code'] ?? '');
 
-            $stmt->execute([
-                $item['code'] ?? '',
-                $item['name'],
-                $item['category_id'] ?? null,
-                $item['size'] ?? 'Unico',
-                $item['color'] ?? '',
-                $item['gender'] ?? 'Unisex',
-                $item['cost_price'],
-                $item['sell_price'],
-                $item['quantity'], // Initial stock
-                $item['image'] ?? ''
-            ]);
+            // If a code was informed, check whether a product with it already exists.
+            // The products.code column has a UNIQUE index, so creating a duplicate
+            // would throw "Duplicate entry ... for key 'products.code'".
+            $existing_id = null;
+            if ($code !== '') {
+                $check = $pdo->prepare("SELECT id FROM products WHERE code = ? LIMIT 1");
+                $check->execute([$code]);
+                $existing_id = $check->fetchColumn();
+            }
 
-            $product_id = $pdo->lastInsertId();
+            if ($existing_id) {
+                // A product with this code already exists: add to its stock
+                // instead of failing with a duplicate-key error.
+                $product_id = $existing_id;
+
+                $stmt = $pdo->prepare("
+                    UPDATE products
+                    SET stock = stock + ?,
+                        cost_price = ?
+                    WHERE id = ?
+                ");
+
+                $stmt->execute([
+                    $item['quantity'],
+                    $item['cost_price'],
+                    $product_id
+                ]);
+            } else {
+                // No code informed: generate a unique one to avoid blank-code
+                // collisions (multiple new products would all share code '').
+                if ($code === '') {
+                    do {
+                        $code = 'AUTO-' . strtoupper(substr(md5(uniqid('', true)), 0, 8));
+                        $check = $pdo->prepare("SELECT COUNT(*) FROM products WHERE code = ?");
+                        $check->execute([$code]);
+                    } while ($check->fetchColumn() > 0);
+                }
+
+                // Create new product
+                $stmt = $pdo->prepare("
+                    INSERT INTO products (code, name, category_id, size, color, gender, cost_price, sell_price, stock, image, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                ");
+
+                $stmt->execute([
+                    $code,
+                    $item['name'],
+                    $item['category_id'] ?? null,
+                    $item['size'] ?? 'Unico',
+                    $item['color'] ?? '',
+                    $item['gender'] ?? 'Unisex',
+                    $item['cost_price'],
+                    $item['sell_price'],
+                    $item['quantity'], // Initial stock
+                    $item['image'] ?? ''
+                ]);
+
+                $product_id = $pdo->lastInsertId();
+            }
         } else {
             // Update existing product stock
             $product_id = $item['product_id'];
@@ -132,8 +173,15 @@ try {
         $pdo->rollBack();
     }
 
+    $message = $e->getMessage();
+
+    // Friendly message for duplicate product code (UNIQUE constraint on products.code)
+    if (strpos($message, 'products.code') !== false || strpos($message, '1062') !== false) {
+        $message = 'Já existe um produto com este código. Use "Adicionar Produto Existente" para repor o estoque, ou informe um código diferente.';
+    }
+
     echo json_encode([
         'success' => false,
-        'message' => $e->getMessage()
+        'message' => $message
     ]);
 }
