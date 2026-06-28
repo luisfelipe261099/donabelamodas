@@ -38,16 +38,27 @@ $stmt = $pdo->prepare("SELECT s.payment_method, SUM(s.total_amount) as total, CO
 $stmt->execute($params);
 $payment_stats = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Filtered sales details
+// Filtered sales details (with cost of goods sold per sale)
 $stmt = $pdo->prepare("
-    SELECT s.*, u.name as user_name 
-    FROM sales s 
-    JOIN users u ON s.user_id = u.id 
-    WHERE $where 
+    SELECT s.*, u.name as user_name,
+        (SELECT COALESCE(SUM(si.quantity * p.cost_price), 0)
+         FROM sale_items si
+         JOIN products p ON si.product_id = p.id
+         WHERE si.sale_id = s.id) as total_cost
+    FROM sales s
+    JOIN users u ON s.user_id = u.id
+    WHERE $where
     ORDER BY s.created_at DESC
 ");
 $stmt->execute($params);
 $filtered_sales = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Period totals: cost and profit
+$period_cost = 0;
+foreach ($filtered_sales as $s) {
+    $period_cost += $s['total_cost'];
+}
+$period_profit = $filtered_total - $period_cost;
 
 // Get accounts receivable summary
 $accounts_pending = $pdo->query("SELECT COALESCE(SUM(remaining_amount), 0) FROM accounts_receivable WHERE status IN ('pending', 'partial', 'overdue')")->fetchColumn();
@@ -193,6 +204,42 @@ include 'includes/header.php';
             </div>
         </div>    </div>
 
+    <!-- Custo e Lucro do Periodo -->
+    <div class="row g-3 mb-3">
+        <div class="col-md-6">
+            <div class="card bg-dark text-white h-100 border-warning">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1 text-warning">Custo do Período (gastei)</h6>
+                            <h3 class="fw-bold mb-0 text-warning">R$ <?php echo number_format($period_cost, 2, ',', '.'); ?></h3>
+                            <small class="text-muted">Custo dos produtos vendidos</small>
+                        </div>
+                        <div>
+                            <i class="fas fa-arrow-down fa-3x opacity-50 text-warning"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card bg-dark text-white h-100 <?php echo $period_profit >= 0 ? 'border-info' : 'border-danger'; ?>">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1 <?php echo $period_profit >= 0 ? 'text-info' : 'text-danger'; ?>">Lucro do Período (ganhei)</h6>
+                            <h3 class="fw-bold mb-0 <?php echo $period_profit >= 0 ? 'text-info' : 'text-danger'; ?>">R$ <?php echo number_format($period_profit, 2, ',', '.'); ?></h3>
+                            <small class="text-muted">Faturamento − Custo</small>
+                        </div>
+                        <div>
+                            <i class="fas fa-arrow-up fa-3x opacity-50 <?php echo $period_profit >= 0 ? 'text-info' : 'text-danger'; ?>"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Filters -->
     <div class="card mb-4 no-print">
         <div class="card-header bg-dark">
@@ -334,6 +381,8 @@ include 'includes/header.php';
                                     <th class="text-end">Valor Venda</th>
                                     <th class="text-end">Desconto</th>
                                     <th class="text-end">Total</th>
+                                    <th class="text-end">Custo</th>
+                                    <th class="text-end">Lucro</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -368,11 +417,18 @@ include 'includes/header.php';
                                             <td class="text-end fw-bold text-success">
                                                 R$ <?php echo number_format($sale['total_amount'], 2, ',', '.'); ?>
                                             </td>
+                                            <td class="text-end text-warning">
+                                                R$ <?php echo number_format($sale['total_cost'], 2, ',', '.'); ?>
+                                            </td>
+                                            <?php $sale_profit = $sale['total_amount'] - $sale['total_cost']; ?>
+                                            <td class="text-end fw-bold <?php echo $sale_profit >= 0 ? 'text-info' : 'text-danger'; ?>">
+                                                R$ <?php echo number_format($sale_profit, 2, ',', '.'); ?>
+                                            </td>
                                         </tr>
                                     <?php endforeach; ?>
                                 <?php else: ?>
                                     <tr>
-                                        <td colspan="7" class="text-center text-muted py-5">
+                                        <td colspan="9" class="text-center text-muted py-5">
                                             <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
                                             Nenhuma venda encontrada no período selecionado
                                         </td>
@@ -384,6 +440,8 @@ include 'includes/header.php';
                                 <tr>
                                     <th colspan="6" class="text-end">TOTAL DO PERÍODO:</th>
                                     <th class="text-end text-success">R$ <?php echo number_format($filtered_total, 2, ',', '.'); ?></th>
+                                    <th class="text-end text-warning">R$ <?php echo number_format($period_cost, 2, ',', '.'); ?></th>
+                                    <th class="text-end <?php echo $period_profit >= 0 ? 'text-info' : 'text-danger'; ?>">R$ <?php echo number_format($period_profit, 2, ',', '.'); ?></th>
                                 </tr>
                             </tfoot>
                             <?php endif; ?>
