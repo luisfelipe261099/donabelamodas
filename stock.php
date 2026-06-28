@@ -261,7 +261,7 @@ $products = $pdo->query("SELECT id, code, name, stock, cost_price, sell_price FR
 
 <!-- Entry Details Modal -->
 <div class="modal fade" id="entryDetailsModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content bg-dark text-white">
             <div class="modal-header border-secondary">
                 <h5 class="modal-title">Detalhes da Entrada #<span id="detailsEntryId"></span></h5>
@@ -290,12 +290,26 @@ $products = $pdo->query("SELECT id, code, name, stock, cost_price, sell_price FR
                                 <th>Código</th>
                                 <th class="text-center">Qtd</th>
                                 <th class="text-end">Preço Custo</th>
-                                <th class="text-end">Subtotal</th>
+                                <th class="text-end">Preço Venda</th>
+                                <th class="text-center">Margem %</th>
+                                <th class="text-end">Subtotal Custo</th>
+                                <th class="text-end">Subtotal Venda</th>
                             </tr>
                         </thead>
                         <tbody id="detailsItemsBody">
                             <!-- Items will be loaded here -->
                         </tbody>
+                        <tfoot class="border-top border-secondary">
+                            <tr class="fw-bold">
+                                <td colspan="6" class="text-end">TOTAIS:</td>
+                                <td class="text-end text-warning" id="detailsTotalCost">R$ 0,00</td>
+                                <td class="text-end text-success" id="detailsTotalSell">R$ 0,00</td>
+                            </tr>
+                            <tr class="fw-bold">
+                                <td colspan="6" class="text-end">MARGEM TOTAL:</td>
+                                <td colspan="2" class="text-end text-info" id="detailsTotalMargin">0%</td>
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
             </div>
@@ -492,7 +506,7 @@ $products = $pdo->query("SELECT id, code, name, stock, cost_price, sell_price FR
 
     function viewEntryDetails(id) {
         document.getElementById('detailsEntryId').textContent = id;
-        document.getElementById('detailsItemsBody').innerHTML = '<tr><td colspan="5" class="text-center">Carregando...</td></tr>';
+        document.getElementById('detailsItemsBody').innerHTML = '<tr><td colspan="8" class="text-center">Carregando...</td></tr>';
 
         const modal = new bootstrap.Modal(document.getElementById('entryDetailsModal'));
         modal.show();
@@ -513,17 +527,45 @@ $products = $pdo->query("SELECT id, code, name, stock, cost_price, sell_price FR
                 const tbody = document.getElementById('detailsItemsBody');
                 tbody.innerHTML = '';
 
+                const fmt = (v) => 'R$ ' + parseFloat(v || 0).toFixed(2).replace('.', ',');
+
+                let totalCost = 0;
+                let totalSell = 0;
+
                 data.items.forEach(item => {
+                    const qty = parseFloat(item.quantity) || 0;
+                    const cost = parseFloat(item.cost_price) || 0;
+                    const sell = parseFloat(item.product_sell_price) || 0;
+                    const subtotalCost = parseFloat(item.subtotal) || (qty * cost);
+                    const subtotalSell = qty * sell;
+
+                    // Margem sobre o custo: quanto a venda esta acima do custo
+                    const margin = cost > 0 ? ((sell - cost) / cost) * 100 : 0;
+                    const marginClass = margin >= 0 ? 'text-success' : 'text-danger';
+
+                    totalCost += subtotalCost;
+                    totalSell += subtotalSell;
+
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
                         <td>${item.product_name || 'Produto Removido'}</td>
                         <td>${item.product_code || '-'}</td>
                         <td class="text-center">${item.quantity}</td>
-                        <td class="text-end">R$ ${parseFloat(item.cost_price).toFixed(2).replace('.', ',')}</td>
-                        <td class="text-end">R$ ${parseFloat(item.subtotal).toFixed(2).replace('.', ',')}</td>
+                        <td class="text-end">${fmt(cost)}</td>
+                        <td class="text-end">${fmt(sell)}</td>
+                        <td class="text-center ${marginClass}">${margin.toFixed(1).replace('.', ',')}%</td>
+                        <td class="text-end">${fmt(subtotalCost)}</td>
+                        <td class="text-end">${fmt(subtotalSell)}</td>
                     `;
                     tbody.appendChild(tr);
                 });
+
+                // Margem total sobre o custo
+                const totalMargin = totalCost > 0 ? ((totalSell - totalCost) / totalCost) * 100 : 0;
+
+                document.getElementById('detailsTotalCost').textContent = fmt(totalCost);
+                document.getElementById('detailsTotalSell').textContent = fmt(totalSell);
+                document.getElementById('detailsTotalMargin').textContent = totalMargin.toFixed(1).replace('.', ',') + '%';
             })
             .catch(error => {
                 console.error('Error:', error);

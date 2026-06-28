@@ -29,7 +29,7 @@ try {
 
     // Get items
     $stmt = $pdo->prepare("
-        SELECT sei.*, p.name as product_name, p.code as product_code
+        SELECT sei.*, p.name as product_name, p.code as product_code, p.sell_price as product_sell_price
         FROM stock_entry_items sei
         LEFT JOIN products p ON sei.product_id = p.id
         WHERE sei.stock_entry_id = ?
