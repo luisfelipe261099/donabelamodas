@@ -13,6 +13,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 
     try {
+        // Detecta se sale_items tem a coluna de custo historico (migrate_sale_cost.php)
+        $hasCostColumn = false;
+        try {
+            $hasCostColumn = (bool) $pdo->query("SHOW COLUMNS FROM sale_items LIKE 'cost_price'")->fetch();
+        } catch (Exception $e) {
+            $hasCostColumn = false;
+        }
+
         $pdo->beginTransaction();
 
         // Get current open cash register
@@ -46,21 +54,41 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $sale_id = $pdo->lastInsertId();
 
         // Add Items and Update Stock
-        $stmt_item = $pdo->prepare("INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal) VALUES (?, ?, ?, ?, ?)");
+        if ($hasCostColumn) {
+            $stmt_item = $pdo->prepare("INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal, cost_price) VALUES (?, ?, ?, ?, ?, ?)");
+        } else {
+            $stmt_item = $pdo->prepare("INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal) VALUES (?, ?, ?, ?, ?)");
+        }
         $stmt_stock = $pdo->prepare("UPDATE products SET stock = stock - ? WHERE id = ?");
+        $stmt_cost = $pdo->prepare("SELECT cost_price FROM products WHERE id = ?");
 
         foreach ($data['items'] as $item) {
             $unit_price = floatval($item['price']);
             $quantity = intval($item['quantity']);
             $item_subtotal = $unit_price * $quantity;
 
-            $stmt_item->execute([
-                $sale_id,
-                $item['id'],
-                $quantity,
-                $unit_price,
-                $item_subtotal
-            ]);
+            if ($hasCostColumn) {
+                // Custo do produto no momento da venda (custo historico)
+                $stmt_cost->execute([$item['id']]);
+                $cost_price = floatval($stmt_cost->fetchColumn());
+
+                $stmt_item->execute([
+                    $sale_id,
+                    $item['id'],
+                    $quantity,
+                    $unit_price,
+                    $item_subtotal,
+                    $cost_price
+                ]);
+            } else {
+                $stmt_item->execute([
+                    $sale_id,
+                    $item['id'],
+                    $quantity,
+                    $unit_price,
+                    $item_subtotal
+                ]);
+            }
 
             $stmt_stock->execute([$quantity, $item['id']]);
         }

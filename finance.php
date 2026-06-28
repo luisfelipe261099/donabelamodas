@@ -38,10 +38,22 @@ $stmt = $pdo->prepare("SELECT s.payment_method, SUM(s.total_amount) as total, CO
 $stmt->execute($params);
 $payment_stats = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+// Usa o custo historico (sale_items.cost_price) se a coluna existir,
+// caindo para o custo atual do produto em vendas antigas/sem custo.
+$saleItemsHasCost = false;
+try {
+    $saleItemsHasCost = (bool) $pdo->query("SHOW COLUMNS FROM sale_items LIKE 'cost_price'")->fetch();
+} catch (Exception $e) {
+    $saleItemsHasCost = false;
+}
+$costExpr = $saleItemsHasCost
+    ? "si.quantity * COALESCE(NULLIF(si.cost_price, 0), p.cost_price)"
+    : "si.quantity * p.cost_price";
+
 // Filtered sales details (with cost of goods sold per sale)
 $stmt = $pdo->prepare("
     SELECT s.*, u.name as user_name,
-        (SELECT COALESCE(SUM(si.quantity * p.cost_price), 0)
+        (SELECT COALESCE(SUM($costExpr), 0)
          FROM sale_items si
          JOIN products p ON si.product_id = p.id
          WHERE si.sale_id = s.id) as total_cost
@@ -53,12 +65,13 @@ $stmt = $pdo->prepare("
 $stmt->execute($params);
 $filtered_sales = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Period totals: cost and profit
+// Period totals: cost, profit and margin %
 $period_cost = 0;
 foreach ($filtered_sales as $s) {
     $period_cost += $s['total_cost'];
 }
 $period_profit = $filtered_total - $period_cost;
+$period_margin = $filtered_total > 0 ? ($period_profit / $filtered_total) * 100 : 0;
 
 // Get accounts receivable summary
 $accounts_pending = $pdo->query("SELECT COALESCE(SUM(remaining_amount), 0) FROM accounts_receivable WHERE status IN ('pending', 'partial', 'overdue')")->fetchColumn();
@@ -229,7 +242,7 @@ include 'includes/header.php';
                         <div>
                             <h6 class="card-title mb-1 <?php echo $period_profit >= 0 ? 'text-info' : 'text-danger'; ?>">Lucro do Período (ganhei)</h6>
                             <h3 class="fw-bold mb-0 <?php echo $period_profit >= 0 ? 'text-info' : 'text-danger'; ?>">R$ <?php echo number_format($period_profit, 2, ',', '.'); ?></h3>
-                            <small class="text-muted">Faturamento − Custo</small>
+                            <small class="text-muted">Margem: <?php echo number_format($period_margin, 1, ',', '.'); ?>% &middot; Faturamento − Custo</small>
                         </div>
                         <div>
                             <i class="fas fa-arrow-up fa-3x opacity-50 <?php echo $period_profit >= 0 ? 'text-info' : 'text-danger'; ?>"></i>
@@ -383,6 +396,7 @@ include 'includes/header.php';
                                     <th class="text-end">Total</th>
                                     <th class="text-end">Custo</th>
                                     <th class="text-end">Lucro</th>
+                                    <th class="text-end">Margem %</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -420,15 +434,21 @@ include 'includes/header.php';
                                             <td class="text-end text-warning">
                                                 R$ <?php echo number_format($sale['total_cost'], 2, ',', '.'); ?>
                                             </td>
-                                            <?php $sale_profit = $sale['total_amount'] - $sale['total_cost']; ?>
+                                            <?php
+                                                $sale_profit = $sale['total_amount'] - $sale['total_cost'];
+                                                $sale_margin = $sale['total_amount'] > 0 ? ($sale_profit / $sale['total_amount']) * 100 : 0;
+                                            ?>
                                             <td class="text-end fw-bold <?php echo $sale_profit >= 0 ? 'text-info' : 'text-danger'; ?>">
                                                 R$ <?php echo number_format($sale_profit, 2, ',', '.'); ?>
+                                            </td>
+                                            <td class="text-end <?php echo $sale_profit >= 0 ? 'text-info' : 'text-danger'; ?>">
+                                                <?php echo number_format($sale_margin, 1, ',', '.'); ?>%
                                             </td>
                                         </tr>
                                     <?php endforeach; ?>
                                 <?php else: ?>
                                     <tr>
-                                        <td colspan="9" class="text-center text-muted py-5">
+                                        <td colspan="10" class="text-center text-muted py-5">
                                             <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
                                             Nenhuma venda encontrada no período selecionado
                                         </td>
@@ -442,6 +462,7 @@ include 'includes/header.php';
                                     <th class="text-end text-success">R$ <?php echo number_format($filtered_total, 2, ',', '.'); ?></th>
                                     <th class="text-end text-warning">R$ <?php echo number_format($period_cost, 2, ',', '.'); ?></th>
                                     <th class="text-end <?php echo $period_profit >= 0 ? 'text-info' : 'text-danger'; ?>">R$ <?php echo number_format($period_profit, 2, ',', '.'); ?></th>
+                                    <th class="text-end <?php echo $period_profit >= 0 ? 'text-info' : 'text-danger'; ?>"><?php echo number_format($period_margin, 1, ',', '.'); ?>%</th>
                                 </tr>
                             </tfoot>
                             <?php endif; ?>

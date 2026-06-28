@@ -40,9 +40,20 @@ $stmt->execute($params);
 $payment_stats = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Filtered sales details
+// Usa custo historico (sale_items.cost_price) se existir, senao custo atual do produto
+$saleItemsHasCost = false;
+try {
+    $saleItemsHasCost = (bool) $pdo->query("SHOW COLUMNS FROM sale_items LIKE 'cost_price'")->fetch();
+} catch (Exception $e) {
+    $saleItemsHasCost = false;
+}
+$costExpr = $saleItemsHasCost
+    ? "si.quantity * COALESCE(NULLIF(si.cost_price, 0), p.cost_price)"
+    : "si.quantity * p.cost_price";
+
 $stmt = $pdo->prepare("
     SELECT s.*, u.name as user_name,
-        (SELECT COALESCE(SUM(si.quantity * p.cost_price), 0)
+        (SELECT COALESCE(SUM($costExpr), 0)
          FROM sale_items si
          JOIN products p ON si.product_id = p.id
          WHERE si.sale_id = s.id) as total_cost
@@ -54,12 +65,13 @@ $stmt = $pdo->prepare("
 $stmt->execute($params);
 $filtered_sales = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Period totals: cost and profit
+// Period totals: cost, profit and margin %
 $period_cost = 0;
 foreach ($filtered_sales as $s) {
     $period_cost += $s['total_cost'];
 }
 $period_profit = $filtered_total - $period_cost;
+$period_margin = $filtered_total > 0 ? ($period_profit / $filtered_total) * 100 : 0;
 
 // Payment method translations
 $payment_names = [
@@ -144,6 +156,7 @@ header('Content-Type: text/html; charset=utf-8');
         <div class="summary-box">
             <h3>Lucro (Ganhei)</h3>
             <div class="value">R$ <?php echo number_format($period_profit, 2, ',', '.'); ?></div>
+            <small>Margem: <?php echo number_format($period_margin, 1, ',', '.'); ?>%</small>
         </div>
     </div>
 
@@ -193,6 +206,7 @@ header('Content-Type: text/html; charset=utf-8');
                 <th class="text-right">Total</th>
                 <th class="text-right">Custo</th>
                 <th class="text-right">Lucro</th>
+                <th class="text-right">Margem %</th>
             </tr>
         </thead>
         <tbody>
@@ -215,12 +229,17 @@ header('Content-Type: text/html; charset=utf-8');
                         </td>
                         <td class="text-right">R$ <?php echo number_format($sale['total_amount'], 2, ',', '.'); ?></td>
                         <td class="text-right">R$ <?php echo number_format($sale['total_cost'], 2, ',', '.'); ?></td>
-                        <td class="text-right">R$ <?php echo number_format($sale['total_amount'] - $sale['total_cost'], 2, ',', '.'); ?></td>
+                        <?php
+                            $sale_profit = $sale['total_amount'] - $sale['total_cost'];
+                            $sale_margin = $sale['total_amount'] > 0 ? ($sale_profit / $sale['total_amount']) * 100 : 0;
+                        ?>
+                        <td class="text-right">R$ <?php echo number_format($sale_profit, 2, ',', '.'); ?></td>
+                        <td class="text-right"><?php echo number_format($sale_margin, 1, ',', '.'); ?>%</td>
                     </tr>
                 <?php endforeach; ?>
             <?php else: ?>
                 <tr>
-                    <td colspan="9" class="text-center">Nenhuma venda encontrada no período</td>
+                    <td colspan="10" class="text-center">Nenhuma venda encontrada no período</td>
                 </tr>
             <?php endif; ?>
         </tbody>
@@ -230,6 +249,7 @@ header('Content-Type: text/html; charset=utf-8');
                 <td class="text-right">R$ <?php echo number_format($filtered_total, 2, ',', '.'); ?></td>
                 <td class="text-right">R$ <?php echo number_format($period_cost, 2, ',', '.'); ?></td>
                 <td class="text-right">R$ <?php echo number_format($period_profit, 2, ',', '.'); ?></td>
+                <td class="text-right"><?php echo number_format($period_margin, 1, ',', '.'); ?>%</td>
             </tr>
         </tfoot>
     </table>
