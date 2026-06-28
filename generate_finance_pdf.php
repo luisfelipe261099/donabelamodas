@@ -169,6 +169,7 @@ header('Content-Type: text/html; charset=utf-8');
                 <th>Data/Hora</th>
                 <th>Vendedor</th>
                 <th>Pagamento</th>
+                <th class="text-right">Valor Venda</th>
                 <th class="text-right">Desconto</th>
                 <th class="text-right">Total</th>
             </tr>
@@ -183,6 +184,7 @@ header('Content-Type: text/html; charset=utf-8');
                         <td><?php echo date('d/m/Y H:i', strtotime($sale['created_at'])); ?></td>
                         <td><?php echo $sale['user_name']; ?></td>
                         <td><?php echo $payment_name; ?></td>
+                        <td class="text-right">R$ <?php echo number_format($sale['total_amount'] + $sale['discount'], 2, ',', '.'); ?></td>
                         <td class="text-right">
                             <?php if ($sale['discount'] > 0): ?>
                                 R$ <?php echo number_format($sale['discount'], 2, ',', '.'); ?>
@@ -195,13 +197,13 @@ header('Content-Type: text/html; charset=utf-8');
                 <?php endforeach; ?>
             <?php else: ?>
                 <tr>
-                    <td colspan="6" class="text-center">Nenhuma venda encontrada no período</td>
+                    <td colspan="7" class="text-center">Nenhuma venda encontrada no período</td>
                 </tr>
             <?php endif; ?>
         </tbody>
         <tfoot>
             <tr class="total-row">
-                <td colspan="5" class="text-right">TOTAL DO PERÍODO:</td>
+                <td colspan="6" class="text-right">TOTAL DO PERÍODO:</td>
                 <td class="text-right">R$ <?php echo number_format($filtered_total, 2, ',', '.'); ?></td>
             </tr>
         </tfoot>

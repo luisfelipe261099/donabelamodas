@@ -331,6 +331,7 @@ include 'includes/header.php';
                                     <th>Data/Hora</th>
                                     <th>Vendedor</th>
                                     <th>Pagamento</th>
+                                    <th class="text-end">Valor Venda</th>
                                     <th class="text-end">Desconto</th>
                                     <th class="text-end">Total</th>
                                 </tr>
@@ -355,6 +356,9 @@ include 'includes/header.php';
                                                 </span>
                                             </td>
                                             <td class="text-end">
+                                                R$ <?php echo number_format($sale['total_amount'] + $sale['discount'], 2, ',', '.'); ?>
+                                            </td>
+                                            <td class="text-end">
                                                 <?php if ($sale['discount'] > 0): ?>
                                                     <span class="text-warning">-R$ <?php echo number_format($sale['discount'], 2, ',', '.'); ?></span>
                                                 <?php else: ?>
@@ -368,7 +372,7 @@ include 'includes/header.php';
                                     <?php endforeach; ?>
                                 <?php else: ?>
                                     <tr>
-                                        <td colspan="6" class="text-center text-muted py-5">
+                                        <td colspan="7" class="text-center text-muted py-5">
                                             <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
                                             Nenhuma venda encontrada no período selecionado
                                         </td>
@@ -378,7 +382,7 @@ include 'includes/header.php';
                             <?php if (count($filtered_sales) > 0): ?>
                             <tfoot class="table-dark">
                                 <tr>
-                                    <th colspan="5" class="text-end">TOTAL DO PERÍODO:</th>
+                                    <th colspan="6" class="text-end">TOTAL DO PERÍODO:</th>
                                     <th class="text-end text-success">R$ <?php echo number_format($filtered_total, 2, ',', '.'); ?></th>
                                 </tr>
                             </tfoot>
