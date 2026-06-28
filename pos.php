@@ -54,10 +54,6 @@
                             <h5 class="text-muted mb-0">Subtotal</h5>
                             <h5 class="fw-bold text-white mb-0" id="cart-subtotal">R$ 0,00</h5>
                         </div>
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <h5 class="text-info mb-0">Desconto Máx.</h5>
-                            <h5 class="fw-bold text-info mb-0" id="cart-max-discount">R$ 0,00</h5>
-                        </div>
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h4 class="text-white mb-0">Total</h4>
                             <h2 class="fw-bold text-success mb-0" id="cart-total">R$ 0,00</h2>
@@ -92,7 +88,7 @@
                         <input type="number" id="sale-discount" class="form-control bg-dark text-white border-secondary" value="0" min="0" step="0.01" onchange="updateModalTotal()">
                     </div>
                     <button class="btn btn-outline-info w-100" type="button" onclick="promptDiscountOptions()">
-                        <i class="fas fa-tags me-2"></i> Ver Opções de Desconto
+                        <i class="fas fa-tags me-2"></i> Escolher Desconto
                     </button>
                     <small class="text-muted d-block mt-2" id="discount-feedback"></small>
                 </div>
@@ -151,7 +147,6 @@
 
 <script>
     let cart = [];
-    let currentMaxDiscount = 0;
 
     $('#product-search').on('keyup', function () {
         let term = $(this).val();
@@ -168,11 +163,6 @@
                                 <h6 class="fw-bold text-truncate">${p.name}</h6>
                                 <p class="text-muted small">${p.size} | ${p.color}</p>
                                 <h5 class="text-success">R$ ${parseFloat(p.sell_price).toFixed(2)}</h5>
-                                ${p.max_discount_value > 0 ? 
-                                    `<span class="badge bg-info text-dark w-100 mt-2" title="Margem segura de 10%">
-                                        Desc. Max: R$ ${parseFloat(p.max_discount_value).toFixed(2)}
-                                     </span>` 
-                                : ''}
                             </div>
                         </div>
                     </div>
@@ -199,7 +189,6 @@
                 id: product.id,
                 name: product.name,
                 price: parseFloat(product.sell_price),
-                max_discount: parseFloat(product.max_discount_value || 0),
                 quantity: 1
             });
         }
@@ -215,14 +204,12 @@
         let html = '';
         let total = 0;
         let count = 0;
-        let totalMaxDiscount = 0;
 
         cart.forEach((item, index) => {
             let subtotal = item.price * item.quantity;
             total += subtotal;
             count += item.quantity;
-            totalMaxDiscount += (item.max_discount * item.quantity);
-            
+
             html += `
             <tr>
                 <td>${item.name}</td>
@@ -247,10 +234,7 @@
         $('#cart-items').html(html);
         $('#cart-subtotal').text('R$ ' + total.toFixed(2));
         $('#cart-total').text('R$ ' + total.toFixed(2));
-        $('#cart-max-discount').text('R$ ' + totalMaxDiscount.toFixed(2));
         $('#cart-count').text(count + ' itens');
-        
-        currentMaxDiscount = totalMaxDiscount;
     }
 
     function updateQuantity(index, qty) {
@@ -267,7 +251,7 @@
 
         // Reset discount
         $('#sale-discount').val(0);
-        $('#discount-feedback').text(`Máximo sugerido: R$ ${currentMaxDiscount.toFixed(2)}`);
+        $('#discount-feedback').text('');
 
         let total = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
         $('#modal-total').text('R$ ' + total.toFixed(2));
@@ -317,29 +301,63 @@
         }
     }
     
+    // Descontos por forma de pagamento
+    const DISCOUNT_OPTIONS = {
+        'Cash':       { label: 'Dinheiro', percent: 10 },
+        'Pix':        { label: 'Pix',      percent: 10 },
+        'Debit Card': { label: 'Débito',   percent: 5 }
+    };
+
     function promptDiscountOptions() {
+        const inputOptions = {};
+        Object.keys(DISCOUNT_OPTIONS).forEach(key => {
+            const opt = DISCOUNT_OPTIONS[key];
+            inputOptions[key] = `${opt.label} - ${opt.percent}%`;
+        });
+
         Swal.fire({
-            title: 'Opções de Desconto',
-            html: `
-                <p>O sistema sugere um desconto máximo seguro de:</p>
-                <h3 class="text-info">R$ ${currentMaxDiscount.toFixed(2)}</h3>
-                <p class="small text-muted">Isso mantém uma margem de lucro de 10%.</p>
-            `,
-            showDenyButton: true,
+            title: 'Escolher Desconto',
+            input: 'select',
+            inputOptions: inputOptions,
+            inputPlaceholder: 'Selecione a forma de pagamento',
             showCancelButton: true,
-            confirmButtonText: `Aplicar R$ ${currentMaxDiscount.toFixed(2)}`,
-            denyButtonText: `Digitar Outro Valor`,
+            confirmButtonText: 'Aplicar Desconto',
             cancelButtonText: 'Cancelar',
-            confirmButtonColor: '#36b9cc',
-            denyButtonColor: '#858796'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                $('#sale-discount').val(currentMaxDiscount.toFixed(2));
-                updateModalTotal();
-                Swal.fire('Aplicado!', 'Desconto máximo aplicado.', 'success');
-            } else if (result.isDenied) {
-                setTimeout(() => $('#sale-discount').focus(), 500);
+            confirmButtonColor: '#1cc88a',
+            cancelButtonColor: '#858796',
+            inputValidator: (value) => {
+                if (!value) {
+                    return 'Selecione uma forma de pagamento';
+                }
             }
+        }).then((result) => {
+            if (result.isConfirmed && result.value) {
+                applyPaymentDiscount(result.value);
+            }
+        });
+    }
+
+    function applyPaymentDiscount(methodKey) {
+        const opt = DISCOUNT_OPTIONS[methodKey];
+        if (!opt) return;
+
+        const total = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+        const discount = total * (opt.percent / 100);
+
+        $('#sale-discount').val(discount.toFixed(2));
+
+        // Sincroniza a forma de pagamento com o desconto escolhido
+        $('#payment-method').val(methodKey);
+        handlePaymentChange();
+
+        updateModalTotal();
+
+        Swal.fire({
+            icon: 'success',
+            title: 'Desconto aplicado!',
+            html: `${opt.label}: <strong>${opt.percent}%</strong> (R$ ${discount.toFixed(2)})`,
+            timer: 1800,
+            showConfirmButton: false
         });
     }
     
@@ -347,12 +365,11 @@
         let total = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
         let discount = parseFloat($('#sale-discount').val()) || 0;
 
-        if (discount > currentMaxDiscount) {
-            $('#sale-discount').addClass('is-invalid');
-            $('#discount-feedback').addClass('text-danger').html(`<i class="fas fa-exclamation-triangle"></i> Atenção: Acima da margem segura (R$ ${currentMaxDiscount.toFixed(2)})`);
+        if (discount > 0) {
+            const pct = total > 0 ? (discount / total) * 100 : 0;
+            $('#discount-feedback').removeClass('text-danger').text(`Desconto aplicado: R$ ${discount.toFixed(2)} (${pct.toFixed(1)}%)`);
         } else {
-            $('#sale-discount').removeClass('is-invalid');
-            $('#discount-feedback').removeClass('text-danger').text(`Máximo sugerido: R$ ${currentMaxDiscount.toFixed(2)}`);
+            $('#discount-feedback').text('');
         }
 
         let finalTotal = Math.max(0, total - discount);
