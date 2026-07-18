@@ -28,6 +28,7 @@
     { "src": "ajax_get_sale_items.php", "use": "vercel-php@0.8.0" },
     { "src": "ajax_get_stock_entry.php", "use": "vercel-php@0.8.0" },
     { "src": "generate_finance_pdf.php", "use": "vercel-php@0.8.0" },
+    { "src": "generate_despesas_pdf.php", "use": "vercel-php@0.8.0" },
     { "src": "generate_pdf_report.php", "use": "vercel-php@0.8.0" },
     { "src": "get_notifications.php", "use": "vercel-php@0.8.0" },
     { "src": "mark_notification_read.php", "use": "vercel-php@0.8.0" },
