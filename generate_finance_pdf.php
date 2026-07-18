@@ -73,6 +73,18 @@ foreach ($filtered_sales as $s) {
 $period_profit = $filtered_total - $period_cost;
 $period_margin = $filtered_total > 0 ? ($period_profit / $filtered_total) * 100 : 0;
 
+// Despesas do periodo e lucro liquido
+$stmt = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE expense_date BETWEEN ? AND ?");
+$stmt->execute([$start_date, $end_date]);
+$period_expenses = $stmt->fetchColumn();
+
+$stmt = $pdo->prepare("SELECT category, COUNT(*) as qty, SUM(amount) as total FROM expenses WHERE expense_date BETWEEN ? AND ? GROUP BY category ORDER BY total DESC");
+$stmt->execute([$start_date, $end_date]);
+$expenses_by_category = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+$net_profit = $period_profit - $period_expenses;
+$net_margin = $filtered_total > 0 ? ($net_profit / $filtered_total) * 100 : 0;
+
 // Payment method translations
 $payment_names = [
     'Cash' => 'Dinheiro',
@@ -154,9 +166,18 @@ header('Content-Type: text/html; charset=utf-8');
             <div class="value">R$ <?php echo number_format($period_cost, 2, ',', '.'); ?></div>
         </div>
         <div class="summary-box">
-            <h3>Lucro (Ganhei)</h3>
+            <h3>Lucro Bruto</h3>
             <div class="value">R$ <?php echo number_format($period_profit, 2, ',', '.'); ?></div>
             <small>Margem: <?php echo number_format($period_margin, 1, ',', '.'); ?>%</small>
+        </div>
+        <div class="summary-box">
+            <h3>Despesas do Período</h3>
+            <div class="value">R$ <?php echo number_format($period_expenses, 2, ',', '.'); ?></div>
+        </div>
+        <div class="summary-box">
+            <h3>Lucro Líquido</h3>
+            <div class="value">R$ <?php echo number_format($net_profit, 2, ',', '.'); ?></div>
+            <small>Margem: <?php echo number_format($net_margin, 1, ',', '.'); ?>% (Lucro Bruto − Despesas)</small>
         </div>
     </div>
 
@@ -192,6 +213,66 @@ header('Content-Type: text/html; charset=utf-8');
             </tr>
         </tfoot>
     </table>
+
+    <?php if (count($expenses_by_category) > 0): ?>
+        <h2>Despesas do Período por Categoria</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Categoria</th>
+                    <th class="text-center">Quantidade</th>
+                    <th class="text-right">Total</th>
+                    <th class="text-right">%</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($expenses_by_category as $cat):
+                    $percentage = $period_expenses > 0 ? ($cat['total'] / $period_expenses) * 100 : 0;
+                ?>
+                    <tr>
+                        <td><?php echo htmlspecialchars($cat['category']); ?></td>
+                        <td class="text-center"><?php echo $cat['qty']; ?></td>
+                        <td class="text-right">R$ <?php echo number_format($cat['total'], 2, ',', '.'); ?></td>
+                        <td class="text-right"><?php echo number_format($percentage, 1); ?>%</td>
+                    </tr>
+                <?php endforeach; ?>
+            </tbody>
+            <tfoot>
+                <tr class="total-row">
+                    <td>TOTAL DE DESPESAS</td>
+                    <td></td>
+                    <td class="text-right">R$ <?php echo number_format($period_expenses, 2, ',', '.'); ?></td>
+                    <td class="text-right">100%</td>
+                </tr>
+            </tfoot>
+        </table>
+    <?php endif; ?>
+
+    <h2>Resultado do Período</h2>
+        <table>
+            <tbody>
+                <tr>
+                    <td>Faturamento (Vendas)</td>
+                    <td class="text-right">R$ <?php echo number_format($filtered_total, 2, ',', '.'); ?></td>
+                </tr>
+                <tr>
+                    <td>(−) Custo dos Produtos Vendidos</td>
+                    <td class="text-right">R$ <?php echo number_format($period_cost, 2, ',', '.'); ?></td>
+                </tr>
+                <tr>
+                    <td>(=) Lucro Bruto</td>
+                    <td class="text-right">R$ <?php echo number_format($period_profit, 2, ',', '.'); ?></td>
+                </tr>
+                <tr>
+                    <td>(−) Despesas do Período</td>
+                    <td class="text-right">R$ <?php echo number_format($period_expenses, 2, ',', '.'); ?></td>
+                </tr>
+                <tr class="total-row">
+                    <td>(=) LUCRO LÍQUIDO</td>
+                    <td class="text-right">R$ <?php echo number_format($net_profit, 2, ',', '.'); ?></td>
+                </tr>
+            </tbody>
+        </table>
 
     <h2>Detalhamento de Vendas</h2>
     <table>

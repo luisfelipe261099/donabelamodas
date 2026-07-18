@@ -1,10 +1,34 @@
-<?php 
+<?php
 require_once 'config/db.php';
 session_start();
 // Get filter parameters
 $start_date = isset($_GET['start_date']) ? $_GET['start_date'] : date('Y-m-01');
 $end_date = isset($_GET['end_date']) ? $_GET['end_date'] : date('Y-m-d');
 $payment_method = isset($_GET['payment_method']) ? $_GET['payment_method'] : '';
+
+// Garantir colunas de baixa na tabela expenses (mesma migracao da pagina de despesas)
+try {
+    $col = $pdo->query("SHOW COLUMNS FROM expenses LIKE 'status'")->fetch();
+    if (!$col) {
+        $pdo->exec("ALTER TABLE expenses ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'Pendente'");
+        $pdo->exec("ALTER TABLE expenses ADD COLUMN paid_at DATE NULL");
+    }
+} catch (PDOException $e) {
+    // Coluna ja existe ou sem permissao de ALTER
+}
+
+// Dar baixa em despesa direto da pagina financeiro
+if (isset($_GET['baixa_despesa'])) {
+    $stmt = $pdo->prepare("UPDATE expenses SET status = 'Pago', paid_at = ? WHERE id = ?");
+    $stmt->execute([date('Y-m-d'), $_GET['baixa_despesa']]);
+    $qs = http_build_query(array_filter([
+        'start_date' => $start_date,
+        'end_date' => $end_date,
+        'payment_method' => $payment_method,
+    ]));
+    header("Location: finance.php" . ($qs ? "?$qs" : ""));
+    exit;
+}
 
 // Build WHERE clause
 $where = "DATE(s.created_at) BETWEEN ? AND ?";
@@ -76,6 +100,31 @@ $period_margin = $filtered_total > 0 ? ($period_profit / $filtered_total) * 100 
 // Get accounts receivable summary
 $accounts_pending = $pdo->query("SELECT COALESCE(SUM(remaining_amount), 0) FROM accounts_receivable WHERE status IN ('pending', 'partial', 'overdue')")->fetchColumn();
 $accounts_overdue = $pdo->query("SELECT COALESCE(SUM(remaining_amount), 0) FROM accounts_receivable WHERE status = 'overdue'")->fetchColumn();
+
+// Despesas do periodo filtrado
+$stmt = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE expense_date BETWEEN ? AND ?");
+$stmt->execute([$start_date, $end_date]);
+$period_expenses = $stmt->fetchColumn();
+
+// Despesas do periodo por categoria
+$stmt = $pdo->prepare("SELECT category, COUNT(*) as qty, SUM(amount) as total FROM expenses WHERE expense_date BETWEEN ? AND ? GROUP BY category ORDER BY total DESC");
+$stmt->execute([$start_date, $end_date]);
+$expenses_by_category = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Despesas a pagar (pendentes, qualquer data)
+$expenses_pending_total = $pdo->query("SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE COALESCE(status, 'Pendente') != 'Pago'")->fetchColumn();
+$pending_expenses = $pdo->query("SELECT * FROM expenses WHERE COALESCE(status, 'Pendente') != 'Pago' ORDER BY expense_date ASC, id ASC LIMIT 100")->fetchAll(PDO::FETCH_ASSOC);
+
+// Lucro liquido do periodo: lucro das vendas menos despesas do periodo
+$net_profit = $period_profit - $period_expenses;
+$net_margin = $filtered_total > 0 ? ($net_profit / $filtered_total) * 100 : 0;
+
+// Query string atual para preservar filtros nos links de baixa
+$current_qs = http_build_query(array_filter([
+    'start_date' => $start_date,
+    'end_date' => $end_date,
+    'payment_method' => $payment_method,
+]));
 
 // Payment method translations
 $payment_names = [
@@ -215,37 +264,86 @@ include 'includes/header.php';
                     </div>
                 </div>
             </div>
-        </div>    </div>
-
-    <!-- Custo e Lucro do Periodo -->
-    <div class="row g-3 mb-3">
-        <div class="col-md-6">
-            <div class="card bg-dark text-white h-100 border-warning">
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-danger text-white h-100">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="card-title mb-1 text-warning">Custo do Período (gastei)</h6>
-                            <h3 class="fw-bold mb-0 text-warning">R$ <?php echo number_format($period_cost, 2, ',', '.'); ?></h3>
-                            <small class="text-muted">Custo dos produtos vendidos</small>
+                            <h6 class="card-title mb-1">Despesas a Pagar</h6>
+                            <h3 class="fw-bold mb-0">R$ <?php echo number_format($expenses_pending_total, 2, ',', '.'); ?></h3>
+                            <small><?php echo count($pending_expenses); ?> pendente(s)</small>
                         </div>
                         <div>
-                            <i class="fas fa-arrow-down fa-3x opacity-50 text-warning"></i>
+                            <i class="fas fa-file-invoice-dollar fa-3x opacity-50"></i>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-        <div class="col-md-6">
+    </div>
+
+    <!-- Custo, Lucro, Despesas e Lucro Liquido do Periodo -->
+    <div class="row g-3 mb-3">
+        <div class="col-md-3">
+            <div class="card bg-dark text-white h-100 border-warning">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1 text-warning">Custo dos Produtos</h6>
+                            <h3 class="fw-bold mb-0 text-warning">R$ <?php echo number_format($period_cost, 2, ',', '.'); ?></h3>
+                            <small class="text-muted">Custo dos produtos vendidos</small>
+                        </div>
+                        <div>
+                            <i class="fas fa-arrow-down fa-2x opacity-50 text-warning"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
             <div class="card bg-dark text-white h-100 <?php echo $period_profit >= 0 ? 'border-info' : 'border-danger'; ?>">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h6 class="card-title mb-1 <?php echo $period_profit >= 0 ? 'text-info' : 'text-danger'; ?>">Lucro do Período (ganhei)</h6>
+                            <h6 class="card-title mb-1 <?php echo $period_profit >= 0 ? 'text-info' : 'text-danger'; ?>">Lucro Bruto</h6>
                             <h3 class="fw-bold mb-0 <?php echo $period_profit >= 0 ? 'text-info' : 'text-danger'; ?>">R$ <?php echo number_format($period_profit, 2, ',', '.'); ?></h3>
-                            <small class="text-muted">Margem: <?php echo number_format($period_margin, 1, ',', '.'); ?>% &middot; Faturamento − Custo</small>
+                            <small class="text-muted">Margem: <?php echo number_format($period_margin, 1, ',', '.'); ?>% &middot; Vendas − Custo</small>
                         </div>
                         <div>
-                            <i class="fas fa-arrow-up fa-3x opacity-50 <?php echo $period_profit >= 0 ? 'text-info' : 'text-danger'; ?>"></i>
+                            <i class="fas fa-arrow-up fa-2x opacity-50 <?php echo $period_profit >= 0 ? 'text-info' : 'text-danger'; ?>"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-dark text-white h-100 border-danger">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1 text-danger">Despesas do Período</h6>
+                            <h3 class="fw-bold mb-0 text-danger">R$ <?php echo number_format($period_expenses, 2, ',', '.'); ?></h3>
+                            <small class="text-muted">Água, luz, aluguel, etc.</small>
+                        </div>
+                        <div>
+                            <i class="fas fa-receipt fa-2x opacity-50 text-danger"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-dark text-white h-100 <?php echo $net_profit >= 0 ? 'border-success' : 'border-danger'; ?>">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-title mb-1 <?php echo $net_profit >= 0 ? 'text-success' : 'text-danger'; ?>">Lucro Líquido</h6>
+                            <h3 class="fw-bold mb-0 <?php echo $net_profit >= 0 ? 'text-success' : 'text-danger'; ?>">R$ <?php echo number_format($net_profit, 2, ',', '.'); ?></h3>
+                            <small class="text-muted">Margem: <?php echo number_format($net_margin, 1, ',', '.'); ?>% &middot; Lucro Bruto − Despesas</small>
+                        </div>
+                        <div>
+                            <i class="fas fa-sack-dollar fa-2x opacity-50 <?php echo $net_profit >= 0 ? 'text-success' : 'text-danger'; ?>"></i>
                         </div>
                     </div>
                 </div>
@@ -304,6 +402,129 @@ include 'includes/header.php';
                 <button class="btn btn-sm btn-outline-info" onclick="setLastMonth()">
                     <i class="fas fa-calendar me-1"></i>M�s Passado
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Despesas a Pagar e Despesas por Categoria -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-8">
+            <div class="card h-100">
+                <div class="card-header bg-dark d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 text-white">
+                        <i class="fas fa-file-invoice-dollar me-2 text-danger"></i>Despesas a Pagar
+                    </h5>
+                    <div>
+                        <span class="badge bg-danger">R$ <?php echo number_format($expenses_pending_total, 2, ',', '.'); ?></span>
+                        <a href="despesas.php?status=Pendente" class="btn btn-sm btn-outline-light ms-2 no-print">
+                            Ver todas <i class="fas fa-arrow-right ms-1"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body" style="max-height: 350px; overflow-y: auto;">
+                    <?php if (count($pending_expenses) > 0): ?>
+                        <div class="table-responsive">
+                            <table class="table table-hover table-sm text-white align-middle mb-0">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Data</th>
+                                        <th>Descrição</th>
+                                        <th>Categoria</th>
+                                        <th class="text-end">Valor</th>
+                                        <th class="text-end no-print">Ação</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($pending_expenses as $exp):
+                                        $is_overdue = $exp['expense_date'] < date('Y-m-d');
+                                    ?>
+                                        <tr>
+                                            <td class="<?php echo $is_overdue ? 'text-danger fw-bold' : ''; ?>">
+                                                <?php echo date('d/m/Y', strtotime($exp['expense_date'])); ?>
+                                                <?php if ($is_overdue): ?>
+                                                    <small class="d-block">vencida</small>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td><?php echo $exp['description']; ?></td>
+                                            <td><span class="badge bg-secondary"><?php echo $exp['category']; ?></span></td>
+                                            <td class="text-end fw-bold text-danger">
+                                                R$ <?php echo number_format($exp['amount'], 2, ',', '.'); ?>
+                                            </td>
+                                            <td class="text-end no-print">
+                                                <a href="finance.php?baixa_despesa=<?php echo $exp['id']; ?><?php echo $current_qs ? '&' . $current_qs : ''; ?>"
+                                                    class="btn btn-sm btn-success" title="Dar baixa (marcar como paga)"
+                                                    onclick="return confirm('Confirmar o pagamento desta despesa?')">
+                                                    <i class="fas fa-check me-1"></i>Pagar
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    <?php else: ?>
+                        <div class="text-center text-muted py-5">
+                            <i class="fas fa-check-circle fa-3x mb-3 text-success"></i>
+                            <p class="mb-0">Nenhuma despesa pendente. Tudo pago! 🎉</p>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-header bg-dark">
+                    <h5 class="mb-0 text-white">
+                        <i class="fas fa-chart-pie me-2"></i>Despesas do Período
+                        <small class="ms-1">(<?php echo date('d/m', strtotime($start_date)); ?> - <?php echo date('d/m', strtotime($end_date)); ?>)</small>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <?php if (count($expenses_by_category) > 0): ?>
+                        <table class="table table-hover text-white mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Categoria</th>
+                                    <th class="text-center">Qtd</th>
+                                    <th class="text-end">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($expenses_by_category as $cat):
+                                    $percentage = $period_expenses > 0 ? ($cat['total'] / $period_expenses) * 100 : 0;
+                                ?>
+                                    <tr>
+                                        <td>
+                                            <?php echo $cat['category']; ?>
+                                            <div class="progress mt-1" style="height: 5px;">
+                                                <div class="progress-bar bg-danger" style="width: <?php echo $percentage; ?>%"></div>
+                                            </div>
+                                        </td>
+                                        <td class="text-center">
+                                            <span class="badge bg-primary"><?php echo $cat['qty']; ?></span>
+                                        </td>
+                                        <td class="text-end fw-bold text-danger">
+                                            R$ <?php echo number_format($cat['total'], 2, ',', '.'); ?>
+                                            <br><small class="text-muted"><?php echo number_format($percentage, 1); ?>%</small>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                            <tfoot>
+                                <tr class="table-dark">
+                                    <th>TOTAL</th>
+                                    <th></th>
+                                    <th class="text-end text-danger">R$ <?php echo number_format($period_expenses, 2, ',', '.'); ?></th>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    <?php else: ?>
+                        <div class="text-center text-muted py-5">
+                            <i class="fas fa-receipt fa-3x mb-3"></i>
+                            <p class="mb-0">Nenhuma despesa no período</p>
+                        </div>
+                    <?php endif; ?>
+                </div>
             </div>
         </div>
     </div>
