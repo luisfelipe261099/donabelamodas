@@ -43,15 +43,21 @@ $f_category = isset($_GET['category']) ? $_GET['category'] : '';
 $f_status = isset($_GET['status']) ? $_GET['status'] : '';
 $f_start = isset($_GET['start_date']) ? $_GET['start_date'] : '';
 $f_end = isset($_GET['end_date']) ? $_GET['end_date'] : '';
+$f_page = max(1, intval($_GET['page'] ?? 1));
 
-// Query string dos filtros para preservar nos links de ação e redirects
-$filter_qs = http_build_query(array_filter([
+// Query string apenas dos filtros (sem página) - usada no relatório e na paginação
+$filters_only = array_filter([
     'search' => $f_search,
     'category' => $f_category,
     'status' => $f_status,
     'start_date' => $f_start,
     'end_date' => $f_end,
-]));
+]);
+$filters_only_qs = http_build_query($filters_only);
+$has_filters = ($filters_only_qs !== '');
+
+// Query string completa (filtros + página) - usada nos links de ação e redirects
+$filter_qs = http_build_query($filters_only + ($f_page > 1 ? ['page' => $f_page] : []));
 $redirect_url = 'despesas.php' . ($filter_qs ? '?' . $filter_qs : '');
 
 // Handle Baixa (marcar como paga)
@@ -104,10 +110,17 @@ if ($f_end !== '') {
     $params[] = $f_end;
 }
 
-$has_filters = ($filter_qs !== '');
+// Paginação
+$per_page = 20;
+$stmt = $pdo->prepare("SELECT COUNT(*) FROM expenses WHERE $where");
+$stmt->execute($params);
+$total_rows = (int) $stmt->fetchColumn();
+$total_pages = max(1, (int) ceil($total_rows / $per_page));
+$f_page = min($f_page, $total_pages);
+$offset = ($f_page - 1) * $per_page;
 
-// Get Expenses (filtradas)
-$stmt = $pdo->prepare("SELECT * FROM expenses WHERE $where ORDER BY expense_date DESC, id DESC");
+// Get Expenses (filtradas e paginadas)
+$stmt = $pdo->prepare("SELECT * FROM expenses WHERE $where ORDER BY expense_date DESC, id DESC LIMIT $per_page OFFSET $offset");
 $stmt->execute($params);
 $expenses = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -131,7 +144,7 @@ $total_paid = $stmt->fetchColumn();
             <h2 class="fw-bold text-white">Despesas</h2>
         </div>
         <div class="col-md-6 text-end">
-            <a href="generate_despesas_pdf.php<?php echo $filter_qs ? '?' . $filter_qs : ''; ?>" target="_blank"
+            <a href="generate_despesas_pdf.php<?php echo $filters_only_qs ? '?' . $filters_only_qs : ''; ?>" target="_blank"
                 class="btn btn-outline-light me-2">
                 <i class="fas fa-file-pdf me-2"></i> Relatório
             </a>
@@ -200,7 +213,7 @@ $total_paid = $stmt->fetchColumn();
                 <div class="card-body">
                     <h5 class="card-title">Total<?php echo $has_filters ? ' (filtrado)' : ' de Despesas'; ?></h5>
                     <h3 class="fw-bold">R$ <?php echo number_format($total_expenses, 2, ',', '.'); ?></h3>
-                    <small><?php echo count($expenses); ?> despesa(s)</small>
+                    <small><?php echo $total_rows; ?> despesa(s)</small>
                 </div>
             </div>
         </div>
@@ -290,6 +303,60 @@ $total_paid = $stmt->fetchColumn();
                     </tbody>
                 </table>
             </div>
+
+            <?php if ($total_pages > 1): ?>
+                <?php
+                // Monta link de página preservando os filtros
+                function page_url($page, $filters_only)
+                {
+                    return 'despesas.php?' . http_build_query($filters_only + ($page > 1 ? ['page' => $page] : []));
+                }
+                $window_start = max(1, $f_page - 2);
+                $window_end = min($total_pages, $f_page + 2);
+                $showing_from = $total_rows > 0 ? (($f_page - 1) * $per_page) + 1 : 0;
+                $showing_to = min($f_page * $per_page, $total_rows);
+                ?>
+                <div class="d-flex flex-wrap justify-content-between align-items-center mt-3">
+                    <small class="text-muted mb-2">
+                        Mostrando <?php echo $showing_from; ?>–<?php echo $showing_to; ?> de
+                        <?php echo $total_rows; ?> despesa(s)
+                    </small>
+                    <nav>
+                        <ul class="pagination pagination-sm mb-0">
+                            <li class="page-item <?php echo $f_page <= 1 ? 'disabled' : ''; ?>">
+                                <a class="page-link" href="<?php echo page_url($f_page - 1, $filters_only); ?>">
+                                    <i class="fas fa-chevron-left"></i>
+                                </a>
+                            </li>
+                            <?php if ($window_start > 1): ?>
+                                <li class="page-item"><a class="page-link"
+                                        href="<?php echo page_url(1, $filters_only); ?>">1</a></li>
+                                <?php if ($window_start > 2): ?>
+                                    <li class="page-item disabled"><span class="page-link">…</span></li>
+                                <?php endif; ?>
+                            <?php endif; ?>
+                            <?php for ($p = $window_start; $p <= $window_end; $p++): ?>
+                                <li class="page-item <?php echo $p == $f_page ? 'active' : ''; ?>">
+                                    <a class="page-link" href="<?php echo page_url($p, $filters_only); ?>"><?php echo $p; ?></a>
+                                </li>
+                            <?php endfor; ?>
+                            <?php if ($window_end < $total_pages): ?>
+                                <?php if ($window_end < $total_pages - 1): ?>
+                                    <li class="page-item disabled"><span class="page-link">…</span></li>
+                                <?php endif; ?>
+                                <li class="page-item"><a class="page-link"
+                                        href="<?php echo page_url($total_pages, $filters_only); ?>"><?php echo $total_pages; ?></a>
+                                </li>
+                            <?php endif; ?>
+                            <li class="page-item <?php echo $f_page >= $total_pages ? 'disabled' : ''; ?>">
+                                <a class="page-link" href="<?php echo page_url($f_page + 1, $filters_only); ?>">
+                                    <i class="fas fa-chevron-right"></i>
+                                </a>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            <?php endif; ?>
         </div>
     </div>
 </div>
