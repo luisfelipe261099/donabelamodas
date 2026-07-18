@@ -17,8 +17,8 @@ try {
     // Coluna ja existe ou sem permissao de ALTER
 }
 
-// Dar baixa em despesa direto da pagina financeiro
-if (isset($_GET['baixa_despesa'])) {
+// Dar baixa em despesa direto da pagina financeiro (somente logado)
+if (isset($_GET['baixa_despesa']) && isset($_SESSION['user_id'])) {
     $stmt = $pdo->prepare("UPDATE expenses SET status = 'Pago', paid_at = ? WHERE id = ?");
     $stmt->execute([date('Y-m-d'), $_GET['baixa_despesa']]);
     $qs = http_build_query(array_filter([
@@ -110,6 +110,10 @@ $period_expenses = $stmt->fetchColumn();
 $stmt = $pdo->prepare("SELECT category, COUNT(*) as qty, SUM(amount) as total FROM expenses WHERE expense_date BETWEEN ? AND ? GROUP BY category ORDER BY total DESC");
 $stmt->execute([$start_date, $end_date]);
 $expenses_by_category = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Total geral de despesas (qualquer data) para avisar quando ha despesas fora do periodo
+$all_expenses_total = $pdo->query("SELECT COALESCE(SUM(amount), 0) FROM expenses")->fetchColumn();
+$expenses_outside_period = $all_expenses_total - $period_expenses;
 
 // Despesas a pagar (pendentes, qualquer data)
 $expenses_pending_total = $pdo->query("SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE COALESCE(status, 'Pendente') != 'Pago'")->fetchColumn();
@@ -324,7 +328,11 @@ include 'includes/header.php';
                         <div>
                             <h6 class="card-title mb-1 text-danger">Despesas do Período</h6>
                             <h3 class="fw-bold mb-0 text-danger">R$ <?php echo number_format($period_expenses, 2, ',', '.'); ?></h3>
-                            <small class="text-muted">Água, luz, aluguel, etc.</small>
+                            <?php if ($expenses_outside_period > 0.005): ?>
+                                <small class="text-warning">+ R$ <?php echo number_format($expenses_outside_period, 2, ',', '.'); ?> fora do período filtrado</small>
+                            <?php else: ?>
+                                <small class="text-muted">Água, luz, aluguel, etc.</small>
+                            <?php endif; ?>
                         </div>
                         <div>
                             <i class="fas fa-receipt fa-2x opacity-50 text-danger"></i>
@@ -521,7 +529,14 @@ include 'includes/header.php';
                     <?php else: ?>
                         <div class="text-center text-muted py-5">
                             <i class="fas fa-receipt fa-3x mb-3"></i>
-                            <p class="mb-0">Nenhuma despesa no período</p>
+                            <p class="mb-0">Nenhuma despesa no período selecionado</p>
+                            <?php if ($expenses_outside_period > 0.005): ?>
+                                <p class="mt-2 mb-0 text-warning">
+                                    Existem R$ <?php echo number_format($expenses_outside_period, 2, ',', '.'); ?>
+                                    em despesas com data fora deste período.<br>
+                                    Ajuste as datas do filtro para incluí-las no cálculo do lucro líquido.
+                                </p>
+                            <?php endif; ?>
                         </div>
                     <?php endif; ?>
                 </div>
