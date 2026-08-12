@@ -39,6 +39,9 @@
     { "src": "assets/**/*", "use": "@vercel/static" }
   ],
   "routes": [
-    { "src": "/", "dest": "/index.php" }
+    { "src": "/", "dest": "/index.php" },
+    { "src": "/studio", "dest": "/website/studio/index.html" },
+    { "src": "/studio/", "dest": "/website/studio/index.html" },
+    { "src": "/studio/(.*)", "dest": "/website/studio/$1" }
   ]
 }
